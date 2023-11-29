@@ -82,7 +82,7 @@ class State:
             access_key=access_key,
         )
 
-        return Detector(porcupine, sensitivity)
+        return Detector(porcupine, sensitivity, access_key)
 
 
 async def main() -> None:
