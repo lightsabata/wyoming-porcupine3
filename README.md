@@ -1,6 +1,6 @@
-# Wyoming Porcupine1
+# Wyoming Porcupine3
 
-[Wyoming protocol](https://github.com/rhasspy/wyoming) server for the [porcupine1](https://github.com/Picovoice/porcupine) wake word detection system.
+[Wyoming protocol](https://github.com/rhasspy/wyoming) server for the [porcupine3](https://github.com/Picovoice/porcupine) wake word detection system.
 
 
 ## Home Assistant Add-on
