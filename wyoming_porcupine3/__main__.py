@@ -102,17 +102,17 @@ async def main() -> None:
     parser.add_argument(
         "--log-format", default=logging.BASIC_FORMAT, help="Format for log messages"
     )
-    parser.add_argument("--version", action="store_true", help="Print version and exit")
-    
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=__version__,
+        help="Print version and exit",
+    )
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO, format=args.log_format
     )
     _LOGGER.debug(args)
-
-    if args.version:
-        print(__version__)
-        return
 
     if not args.system:
         machine = platform.machine().lower()
@@ -144,7 +144,7 @@ async def main() -> None:
         wake=[
             WakeProgram(
                 name="porcupine3",
-                description="On-device wake word detection powered by deep learning ",
+                description="On-device wake word detection powered by deep learning",
                 attribution=Attribution(
                     name="Picovoice", url="https://github.com/Picovoice/porcupine"
                 ),
@@ -154,6 +154,7 @@ async def main() -> None:
                     WakeModel(
                         name=kw.name,
                         description=f"{kw.name} ({kw.language})",
+                        phrase=kw.name,
                         attribution=Attribution(
                             name="Picovoice",
                             url="https://github.com/Picovoice/porcupine",
