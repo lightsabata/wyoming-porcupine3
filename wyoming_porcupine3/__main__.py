@@ -39,6 +39,7 @@ class Keyword:
 class Detector:
     porcupine: pvporcupine.Porcupine
     sensitivity: float
+    access_key: str
 
 
 class State:
@@ -52,7 +53,7 @@ class State:
         self.detector_cache: Dict[str, List[Detector]] = defaultdict(list)
         self.detector_lock = asyncio.Lock()
 
-    async def get_porcupine(self, keyword_name: str, sensitivity: float) -> Detector:
+    async def get_porcupine(self, keyword_name: str, sensitivity: float, access_key: str) -> Detector:
         keyword = self.keywords.get(keyword_name)
         if keyword is None:
             raise ValueError(f"No keyword {keyword_name}")
@@ -80,9 +81,10 @@ class State:
             model_path=str(self.pv_lib_paths[keyword.language]),
             keyword_paths=[str(keyword.model_path)],
             sensitivities=[sensitivity],
+            access_key=access_key,
         )
 
-        return Detector(porcupine, sensitivity)
+        return Detector(porcupine, sensitivity, access_key)
 
 
 async def main() -> None:
@@ -94,6 +96,7 @@ async def main() -> None:
     )
     parser.add_argument("--system", help="linux or raspberry-pi")
     parser.add_argument("--sensitivity", type=float, default=0.5)
+    parser.add_argument("--access_key", type=str, default="")
     #
     parser.add_argument("--debug", action="store_true", help="Log DEBUG messages")
     parser.add_argument(
@@ -140,7 +143,7 @@ async def main() -> None:
     wyoming_info = Info(
         wake=[
             WakeProgram(
-                name="porcupine1",
+                name="porcupine3",
                 description="On-device wake word detection powered by deep learning",
                 attribution=Attribution(
                     name="Picovoice", url="https://github.com/Picovoice/porcupine"
@@ -158,7 +161,7 @@ async def main() -> None:
                         ),
                         installed=True,
                         languages=[kw.language],
-                        version="1.9.0",
+                        version="3.0.0",
                     )
                     for kw in keywords.values()
                 ],
@@ -174,7 +177,7 @@ async def main() -> None:
     server = AsyncServer.from_uri(args.uri)
 
     try:
-        await server.run(partial(Porcupine1EventHandler, wyoming_info, args, state))
+        await server.run(partial(porcupine3EventHandler, wyoming_info, args, state))
     except KeyboardInterrupt:
         pass
 
@@ -182,7 +185,7 @@ async def main() -> None:
 # -----------------------------------------------------------------------------
 
 
-class Porcupine1EventHandler(AsyncEventHandler):
+class porcupine3EventHandler(AsyncEventHandler):
     """Event handler for clients."""
 
     def __init__(
@@ -211,8 +214,19 @@ class Porcupine1EventHandler(AsyncEventHandler):
         _LOGGER.debug("Client connected: %s", self.client_id)
 
     async def handle_event(self, event: Event) -> bool:
+        if Describe.is_type(event.type):
+            await self.write_event(self.wyoming_info_event)
+            _LOGGER.debug("Sent info to client: %s", self.client_id)
+            return True
 
-        if AudioChunk.is_type(event.type):
+        if Detect.is_type(event.type):
+            detect = Detect.from_event(event)
+            if detect.names:
+                # TODO: use all names
+                await self._load_keyword(detect.names[0])
+        elif AudioStart.is_type(event.type):
+            self.detected = False
+        elif AudioChunk.is_type(event.type):
             if self.detector is None:
                 # Default keyword
                 await self._load_keyword(DEFAULT_KEYWORD)
@@ -249,17 +263,8 @@ class Porcupine1EventHandler(AsyncEventHandler):
                 _LOGGER.debug(
                     "Audio stopped without detection from client: %s", self.client_id
                 )
-        elif AudioStart.is_type(event.type):
-            self.detected = False
 
-        elif Detect.is_type(event.type):
-            detect = Detect.from_event(event)
-            if detect.names:
-                # TODO: use all names
-                await self._load_keyword(detect.names[0])
-        elif Describe.is_type(event.type):
-            await self.write_event(self.wyoming_info_event)
-            _LOGGER.debug("Sent info to client: %s", self.client_id)
+            return False
         else:
             _LOGGER.debug("Unexpected event: type=%s, data=%s", event.type, event.data)
 
@@ -281,7 +286,7 @@ class Porcupine1EventHandler(AsyncEventHandler):
 
     async def _load_keyword(self, keyword_name: str):
         self.detector = await self.state.get_porcupine(
-            keyword_name, self.cli_args.sensitivity
+            keyword_name, self.cli_args.sensitivity, self.cli_args.access_key
         )
         self.keyword_name = keyword_name
         self.chunk_format = "h" * self.detector.porcupine.frame_length
@@ -289,7 +294,6 @@ class Porcupine1EventHandler(AsyncEventHandler):
 
 
 # -----------------------------------------------------------------------------
-
 
 def run() -> None:
     asyncio.run(main())
