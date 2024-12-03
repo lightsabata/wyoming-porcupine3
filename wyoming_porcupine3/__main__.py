@@ -214,19 +214,6 @@ class porcupine3EventHandler(AsyncEventHandler):
         _LOGGER.debug("Client connected: %s", self.client_id)
 
     async def handle_event(self, event: Event) -> bool:
-        if Describe.is_type(event.type):
-            await self.write_event(self.wyoming_info_event)
-            _LOGGER.debug("Sent info to client: %s", self.client_id)
-            return True
-
-        if Detect.is_type(event.type):
-            detect = Detect.from_event(event)
-            if detect.names:
-                # TODO: use all names
-                await self._load_keyword(detect.names[0])
-        elif AudioStart.is_type(event.type):
-            self.detected = False
-        elif AudioChunk.is_type(event.type):
             if self.detector is None:
                 # Default keyword
                 await self._load_keyword(DEFAULT_KEYWORD)
@@ -264,7 +251,20 @@ class porcupine3EventHandler(AsyncEventHandler):
                     "Audio stopped without detection from client: %s", self.client_id
                 )
 
-            return False
+
+        elif AudioStart.is_type(event.type):
+            self.detected = False
+
+        elif Detect.is_type(event.type):
+            detect = Detect.from_event(event)
+            if detect.names:
+                # TODO: use all names
+                await self._load_keyword(detect.names[0])
+        elif Describe.is_type(event.type):
+            await self.write_event(self.wyoming_info_event)
+            _LOGGER.debug("Sent info to client: %s", self.client_id)
+
+
         else:
             _LOGGER.debug("Unexpected event: type=%s, data=%s", event.type, event.data)
 
